@@ -41,6 +41,10 @@
   background-color: gray;
 }
 
+.candidate {
+  background-color: rgb(0 255 51 / 30%); /* 半透明の緑色で候補地を表示 */
+}
+
 .point,
 .player {
   margin: 10px;
