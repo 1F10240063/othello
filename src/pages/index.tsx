@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styles from './index.module.css';
 
 const directions = [
@@ -13,8 +13,8 @@ const directions = [
 ];
 
 const Home = () => {
-  const [turnColor, setTrunColor] = useState(1);
-  const [board, setBoard] = useState([
+  const [turnColor, setTurnColor] = useState(1);
+  const [board, setBoard] = useState<number[][]>([
     [0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0],
@@ -24,6 +24,77 @@ const Home = () => {
     [0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0],
   ]);
+  const [candidateMoves, setCandidateMoves] = useState<{ x: number; y: number }[]>([]);
+
+  const calculateCandidateMoves = useCallback(() => {
+    const candidates: { x: number; y: number }[] = [];
+    for (let y = 0; y <= 7; y++) {
+      for (let x = 0; x <= 7; x++) {
+        if (board[y][x] === 0 && isValidMove(x, y, board, turnColor)) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+    setCandidateMoves(candidates);
+  }, [board, turnColor]);
+
+  useEffect(() => {
+    calculateCandidateMoves();
+  }, [board, turnColor, calculateCandidateMoves]);
+
+  const isValidMove = (x: number, y: number, board: number[][], color: number) => {
+    for (const [dx, dy] of directions) {
+      let hasOpponentStone = false;
+      for (let i = 1; i < 8; i++) {
+        const nx = x + i * dx;
+        const ny = y + i * dy;
+        if (nx < 0 || nx >= 8 || ny < 0 || ny >= 8) break;
+        const checkingColor = board[ny][nx];
+        if (checkingColor === 0) break;
+        if (checkingColor === 3 - color) {
+          hasOpponentStone = true;
+        } else if (checkingColor === color) {
+          if (hasOpponentStone) return true;
+          break;
+        } else {
+          break;
+        }
+      }
+    }
+    return false;
+  };
+
+  const clickHandler = (x: number, y: number) => {
+    if (!isValidMove(x, y, board, turnColor)) return;
+
+    const newBoard = structuredClone(board);
+
+    for (const [dx, dy] of directions) {
+      const maybeTurnables: { x: number; y: number }[] = [];
+      for (let i = 1; i < 8; i++) {
+        const nx = x + i * dx;
+        const ny = y + i * dy;
+        if (nx < 0 || nx >= 8 || ny < 0 || ny >= 8) break;
+        const checkingColor = board[ny][nx];
+        if (checkingColor === 3 - turnColor) {
+          maybeTurnables.push({ x: nx, y: ny });
+        } else if (checkingColor === turnColor) {
+          if (maybeTurnables.length > 0) {
+            for (const item of maybeTurnables) {
+              newBoard[item.y][item.x] = turnColor;
+            }
+            newBoard[y][x] = turnColor;
+          }
+          break;
+        } else {
+          break;
+        }
+      }
+    }
+
+    setBoard(newBoard);
+    setTurnColor(3 - turnColor);
+  };
 
   let blackPoint = 0;
   let whitePoint = 0;
@@ -37,57 +108,24 @@ const Home = () => {
       }
     }
   }
-  const clickHandler = (x: number, y: number) => {
-    console.log(x, y);
-    const newBoard = structuredClone(board);
-    for (let n: number = 0; n < 8; n++) {
-      //nを0<=n<8と範囲を決める。
-      const maybeTurnables: { x: number; y: number }[] = []; //maybeTurnableをx,yという数とし、空のリスト[]とする。
-      const [dx, dy] = directions[n];
-      for (let i: number = 1; i < 8; i++) {
-        if (board[y + i * dy] === undefined) {
-          //縦方向の色がなかったら(色が0)そこで止める。
-          break;
-        } //breakで止める
-        const checkingColor = board[y + i * dy][x + i * dx]; //i * dy と i * dx方向に移動。
-        if (checkingColor === undefined) {
-          //縦方向の色がなかったら(色が0)そこで止める。
-          break;
-        } //breakで止める
-        if (checkingColor === 3 - turnColor) {
-          //もしcheckingColorが 3 - turnColor(=相手の色)なら
-          maybeTurnables.push({ x: x + i * dx, y: y + i * dy }); //maybeTurnablesに{ x: x + i * dx, y: y + i * dy }を入れる。
-        } else if (checkingColor === 0) {
-          break;
-        } else if (checkingColor === turnColor) {
-          if (maybeTurnables.length > 0) {
-            for (const item of maybeTurnables) {
-              console.log(item);
-              console.log(maybeTurnables);
-              newBoard[item.y][item.x] = turnColor;
-            }
-            newBoard[y][x] = turnColor;
-          }
-          break;
-        }
-      }
-    }
-    setBoard(newBoard);
-    setTrunColor(3 - turnColor);
-  };
+
+  console.table(board);
 
   return (
     <div className={styles.container}>
-      {}
       <div className={styles.point}>
-        黒：{blackPoint}個
+        黒 - 白
         <br />
-        白：{whitePoint}個
+        {blackPoint} - {whitePoint}
       </div>
       <div className={styles.boardStyle}>
         {board.map((row, y) =>
           row.map((color, x) => (
-            <div className={styles.cellStyle} key={`${x}-${y}`} onClick={() => clickHandler(x, y)}>
+            <div
+              className={`${styles.cellStyle} ${candidateMoves.some((move) => move.x === x && move.y === y) ? styles.candidate : ''}`}
+              key={`${x}-${y}`}
+              onClick={() => clickHandler(x, y)}
+            >
               {color !== 0 && (
                 <div
                   className={styles.stoneStyle}
@@ -98,10 +136,7 @@ const Home = () => {
           )),
         )}
       </div>
-      <div className={styles.player}>
-        {turnColor === 1 ? '黒' : '白'}
-        のターンです
-      </div>
+      <div className={styles.player}>{turnColor === 1 ? '黒' : '白'}のターンです</div>
     </div>
   );
 };
